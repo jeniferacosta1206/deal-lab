@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Home, Building2, Layers, GitCompare, Save, Trash2, FolderOpen, Plus, X, TrendingUp, TrendingDown, FileText, LogOut, Mail, Lock } from 'lucide-react';
-import { supabase } from './supabase';
+import { Home, Building2, Layers, GitCompare, Save, Trash2, FolderOpen, Plus, X, TrendingUp, TrendingDown, FileText } from 'lucide-react';
 
 // ============================================================
 // ACOSTA BRAND TOKENS
@@ -133,135 +132,22 @@ const Section = ({ title, children, icon: Icon }) => (
   </div>
 );
 
-// Tab-style toggle for "Total / Per Unit / Per SF" entry modes
-const ModeSelector = ({ value, onChange, options }) => (
-  <div className="inline-flex border border-slate-soft rounded overflow-hidden bg-white-pure">
-    {options.map(opt => (
-      <button
-        key={opt.value}
-        type="button"
-        onClick={() => onChange(opt.value)}
-        className={`px-3 py-1.5 text-[10px] font-body font-semibold uppercase tracking-[0.12em] transition-colors ${
-          value === opt.value
-            ? 'bg-navy text-cream'
-            : 'text-charcoal-soft hover:bg-cream-light hover:text-navy'
-        }`}
-      >
-        {opt.label}
-      </button>
-    ))}
-  </div>
-);
-
-// Single editable row for a unit type
-const UnitTypeRow = ({ unit, onChange, onRemove, mode }) => (
-  <div className="grid grid-cols-12 gap-2 items-center p-3 bg-white-pure border border-slate-soft rounded">
-    <input
-      type="text"
-      value={unit.label}
-      onChange={(e) => onChange({ ...unit, label: e.target.value })}
-      placeholder="1BR"
-      className="col-span-3 px-2 py-1.5 font-body text-sm text-charcoal outline-none bg-transparent border-b border-cream-dark focus:border-navy"
-    />
-    <div className="col-span-2 flex items-center gap-1">
-      <input
-        type="number"
-        value={unit.count === 0 ? '' : unit.count}
-        onChange={(e) => onChange({ ...unit, count: parseFloat(e.target.value) || 0 })}
-        placeholder="0"
-        className="w-full text-right font-mono text-sm text-charcoal outline-none bg-transparent border-b border-cream-dark focus:border-navy"
-      />
-      <span className="font-mono text-[10px] text-charcoal-muted">×</span>
-    </div>
-    <div className="col-span-3 flex items-center gap-1">
-      <input
-        type="number"
-        value={unit.sizeSqft === 0 ? '' : unit.sizeSqft}
-        onChange={(e) => onChange({ ...unit, sizeSqft: parseFloat(e.target.value) || 0 })}
-        placeholder="0"
-        className="w-full text-right font-mono text-sm text-charcoal outline-none bg-transparent border-b border-cream-dark focus:border-navy"
-      />
-      <span className="font-mono text-[10px] text-charcoal-muted">sf</span>
-    </div>
-    <div className="col-span-3 flex items-center gap-1">
-      <span className="font-mono text-[10px] text-charcoal-muted">$</span>
-      <input
-        type="number"
-        value={(mode === 'rent' ? unit.rentMonthly : unit.salePrice) === 0 ? '' : (mode === 'rent' ? unit.rentMonthly : unit.salePrice)}
-        onChange={(e) => onChange({
-          ...unit,
-          [mode === 'rent' ? 'rentMonthly' : 'salePrice']: parseFloat(e.target.value) || 0
-        })}
-        placeholder="0"
-        className="w-full text-right font-mono text-sm text-charcoal outline-none bg-transparent border-b border-cream-dark focus:border-navy"
-      />
-      <span className="font-mono text-[10px] text-charcoal-muted">{mode === 'rent' ? '/mo' : ''}</span>
-    </div>
-    <button
-      onClick={onRemove}
-      className="col-span-1 text-charcoal-muted hover:text-negative transition-colors flex justify-end"
-      title="Remove unit type"
-    >
-      <X size={14} strokeWidth={2} />
-    </button>
-  </div>
-);
-
-const UnitTypeRowHeader = ({ mode }) => (
-  <div className="grid grid-cols-12 gap-2 px-3 mb-1">
-    <div className="col-span-3 text-[9px] font-body font-semibold uppercase tracking-[0.12em] text-charcoal-muted">Type</div>
-    <div className="col-span-2 text-[9px] font-body font-semibold uppercase tracking-[0.12em] text-charcoal-muted text-right">Count</div>
-    <div className="col-span-3 text-[9px] font-body font-semibold uppercase tracking-[0.12em] text-charcoal-muted text-right">Size</div>
-    <div className="col-span-3 text-[9px] font-body font-semibold uppercase tracking-[0.12em] text-charcoal-muted text-right">{mode === 'rent' ? 'Rent / mo' : 'Sale Price'}</div>
-    <div className="col-span-1"></div>
-  </div>
-);
-
 const defaultRent = {
-  purchasePrice: 0,
-  // Construction Cost (was rehab)
-  constructionMode: 'total', // 'total' | 'perUnit' | 'perSf'
-  constructionTotal: 0,
-  constructionPerUnit: 0,
-  constructionPerSf: 0,
-  // Closing costs as percentage of (purchase + construction)
-  closingCostsPct: 3,
-  // Multi-unit type income input
-  unitTypes: [
-    { id: 1, label: '1BR', count: 0, sizeSqft: 0, rentMonthly: 0 },
-  ],
-  otherIncomeMonthly: 0, vacancyPct: 5,
+  purchasePrice: 0, rehab: 0, closingCosts: 0,
+  grossMonthlyRent: 0, otherIncomeMonthly: 0, vacancyPct: 5,
   taxesAnnual: 0, insuranceAnnual: 0, pmPctOfEGI: 8, maintenancePctOfEGI: 5,
-  reservesPerUnit: 300, utilitiesAnnual: 0, otherOpexAnnual: 0,
-  ltvPct: 75, ratePct: 6.5, amortYears: 20, loanTerm: 5,
+  reservesPerUnit: 300, units: 1, utilitiesAnnual: 0, otherOpexAnnual: 0,
+  ltvPct: 75, ratePct: 7.0, amortYears: 25,
 };
 
 const calcRent = (d) => {
-  // Handle backward compat for old saved deals
-  const unitTypes = d.unitTypes || [];
-  const totalUnits = unitTypes.reduce((s, u) => s + (u.count || 0), 0);
-  const totalSqft = unitTypes.reduce((s, u) => s + (u.count || 0) * (u.sizeSqft || 0), 0);
-  const grossMonthlyRent = unitTypes.reduce((s, u) => s + (u.count || 0) * (u.rentMonthly || 0), 0);
-  const avgRentPerSf = totalSqft > 0 ? grossMonthlyRent / totalSqft : 0;
-
-  // Construction cost based on mode
-  let constructionCost = 0;
-  if (d.constructionMode === 'perUnit') {
-    constructionCost = (d.constructionPerUnit || 0) * totalUnits;
-  } else if (d.constructionMode === 'perSf') {
-    constructionCost = (d.constructionPerSf || 0) * totalSqft;
-  } else {
-    constructionCost = d.constructionTotal || 0;
-  }
-
-  const closingCosts = (d.purchasePrice + constructionCost) * ((d.closingCostsPct || 0) / 100);
-  const totalAcq = d.purchasePrice + constructionCost + closingCosts;
-  const gsi = grossMonthlyRent * 12;
+  const totalAcq = d.purchasePrice + d.rehab + d.closingCosts;
+  const gsi = d.grossMonthlyRent * 12;
   const vacancy = gsi * (d.vacancyPct / 100);
   const egi = gsi - vacancy + d.otherIncomeMonthly * 12;
   const pmCost = egi * (d.pmPctOfEGI / 100);
   const maintCost = egi * (d.maintenancePctOfEGI / 100);
-  const reserves = d.reservesPerUnit * totalUnits;
+  const reserves = d.reservesPerUnit * d.units;
   const opex = d.taxesAnnual + d.insuranceAnnual + pmCost + maintCost + reserves + d.utilitiesAnnual + d.otherOpexAnnual;
   const noi = egi - opex;
   const capRate = totalAcq > 0 ? noi / totalAcq : 0;
@@ -273,116 +159,25 @@ const calcRent = (d) => {
   const cashFlow = noi - annualDebtService;
   const coc = downPayment > 0 ? cashFlow / downPayment : 0;
   const opexRatio = egi > 0 ? opex / egi : 0;
-  return {
-    totalUnits, totalSqft, grossMonthlyRent, avgRentPerSf, constructionCost, closingCosts,
-    totalAcq, gsi, vacancy, egi, opex, noi, capRate, loanAmt, downPayment,
-    annualDebtService, dscr, cashFlow, coc, opexRatio, pmCost, maintCost, reserves
-  };
+  return { totalAcq, gsi, vacancy, egi, opex, noi, capRate, loanAmt, downPayment, annualDebtService, dscr, cashFlow, coc, opexRatio, pmCost, maintCost, reserves };
 };
 
 const RentCalculator = ({ data, setData, results }) => {
   const up = (k) => (v) => setData({ ...data, [k]: v });
-
-  const updateUnit = (id, newUnit) => {
-    setData({ ...data, unitTypes: data.unitTypes.map(u => u.id === id ? newUnit : u) });
-  };
-  const addUnit = () => {
-    const newId = Math.max(0, ...data.unitTypes.map(u => u.id)) + 1;
-    setData({ ...data, unitTypes: [...data.unitTypes, { id: newId, label: 'Unit', count: 0, sizeSqft: 0, rentMonthly: 0 }] });
-  };
-  const removeUnit = (id) => {
-    if (data.unitTypes.length === 1) return; // keep at least one
-    setData({ ...data, unitTypes: data.unitTypes.filter(u => u.id !== id) });
-  };
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
       <div className="lg:col-span-3">
         <Section title="Acquisition" icon={Home}>
           <NumberInput label="Purchase Price" prefix="$" value={data.purchasePrice} onChange={up('purchasePrice')} step={1000} />
-          <NumberInput label="Closing Costs" suffix="% of acq + construction" value={data.closingCostsPct} onChange={up('closingCostsPct')} step={0.25} hint={fmtMoney(results.closingCosts)} />
+          <NumberInput label="Rehab / Capex" prefix="$" value={data.rehab} onChange={up('rehab')} step={1000} />
+          <NumberInput label="Closing Costs" prefix="$" value={data.closingCosts} onChange={up('closingCosts')} step={500} />
+          <NumberInput label="Units" value={data.units} onChange={up('units')} step={1} />
         </Section>
-
-        <div className="mb-7">
-          <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate gap-3 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Home size={13} className="text-slate-blue" strokeWidth={1.5} />
-              <h3 className="text-[10px] font-body font-semibold uppercase tracking-[0.18em] text-navy">Construction Cost</h3>
-            </div>
-            <ModeSelector
-              value={data.constructionMode}
-              onChange={up('constructionMode')}
-              options={[
-                { value: 'total', label: 'Total' },
-                { value: 'perUnit', label: 'Per Unit' },
-                { value: 'perSf', label: 'Per SF' },
-              ]}
-            />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {data.constructionMode === 'total' && (
-              <NumberInput label="Construction Cost (total)" prefix="$" value={data.constructionTotal} onChange={up('constructionTotal')} step={1000} />
-            )}
-            {data.constructionMode === 'perUnit' && (
-              <>
-                <NumberInput label="Cost per Unit" prefix="$" value={data.constructionPerUnit} onChange={up('constructionPerUnit')} step={1000} />
-                <div className="flex items-end">
-                  <div className="text-xs font-body italic text-charcoal-muted">
-                    Total: <span className="font-mono not-italic">{fmtMoney(results.constructionCost)}</span> ({results.totalUnits} units)
-                  </div>
-                </div>
-              </>
-            )}
-            {data.constructionMode === 'perSf' && (
-              <>
-                <NumberInput label="Cost per Square Foot" prefix="$" suffix="/sf" value={data.constructionPerSf} onChange={up('constructionPerSf')} step={1} />
-                <div className="flex items-end">
-                  <div className="text-xs font-body italic text-charcoal-muted">
-                    Total: <span className="font-mono not-italic">{fmtMoney(results.constructionCost)}</span> ({results.totalSqft.toLocaleString()} sf)
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="mb-7">
-          <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate">
-            <div className="flex items-center gap-2">
-              <Home size={13} className="text-slate-blue" strokeWidth={1.5} />
-              <h3 className="text-[10px] font-body font-semibold uppercase tracking-[0.18em] text-navy">Income — Unit Types</h3>
-            </div>
-            <button onClick={addUnit} className="flex items-center gap-1 text-[10px] font-body font-semibold uppercase tracking-[0.12em] text-slate-blue hover:text-navy transition-colors">
-              <Plus size={11} strokeWidth={2} /> Add Unit Type
-            </button>
-          </div>
-          <UnitTypeRowHeader mode="rent" />
-          <div className="space-y-2">
-            {data.unitTypes.map(unit => (
-              <UnitTypeRow
-                key={unit.id}
-                unit={unit}
-                onChange={(updated) => updateUnit(unit.id, updated)}
-                onRemove={() => removeUnit(unit.id)}
-                mode="rent"
-              />
-            ))}
-          </div>
-          <div className="mt-3 px-3 text-xs font-body italic text-charcoal-muted">
-            Totals: <span className="font-mono not-italic">{results.totalUnits}</span> units,{' '}
-            <span className="font-mono not-italic">{results.totalSqft.toLocaleString()}</span> sf,{' '}
-            <span className="font-mono not-italic">{fmtMoney(results.grossMonthlyRent)}/mo</span>
-            {results.avgRentPerSf > 0 && (
-              <> ({fmtMoney(results.avgRentPerSf, 2)}/sf/mo avg)</>
-            )}
-          </div>
-        </div>
-
-        <Section title="Other Income & Vacancy">
+        <Section title="Income">
+          <NumberInput label="Gross Rent (monthly)" prefix="$" value={data.grossMonthlyRent} onChange={up('grossMonthlyRent')} step={50} hint="all units" />
           <NumberInput label="Other Income (monthly)" prefix="$" value={data.otherIncomeMonthly} onChange={up('otherIncomeMonthly')} step={25} hint="laundry, parking" />
           <NumberInput label="Vacancy" suffix="%" value={data.vacancyPct} onChange={up('vacancyPct')} step={0.5} />
         </Section>
-
         <Section title="Operating Expenses">
           <NumberInput label="Property Taxes (annual)" prefix="$" value={data.taxesAnnual} onChange={up('taxesAnnual')} step={100} />
           <NumberInput label="Insurance (annual)" prefix="$" value={data.insuranceAnnual} onChange={up('insuranceAnnual')} step={100} />
@@ -392,12 +187,10 @@ const RentCalculator = ({ data, setData, results }) => {
           <NumberInput label="Utilities (annual)" prefix="$" value={data.utilitiesAnnual} onChange={up('utilitiesAnnual')} step={100} />
           <NumberInput label="Other OpEx (annual)" prefix="$" value={data.otherOpexAnnual} onChange={up('otherOpexAnnual')} step={100} />
         </Section>
-
         <Section title="Financing">
           <NumberInput label="LTV" suffix="%" value={data.ltvPct} onChange={up('ltvPct')} step={1} />
           <NumberInput label="Interest Rate" suffix="%" value={data.ratePct} onChange={up('ratePct')} step={0.125} />
-          <NumberInput label="Loan Term" suffix="years" value={data.loanTerm} onChange={up('loanTerm')} step={1} hint="balloon / maturity" />
-          <NumberInput label="Amortization" suffix="years" value={data.amortYears} onChange={up('amortYears')} step={1} hint="payment basis" />
+          <NumberInput label="Amortization" suffix="years" value={data.amortYears} onChange={up('amortYears')} step={1} />
         </Section>
       </div>
       <div className="lg:col-span-2">
@@ -410,11 +203,6 @@ const RentCalculator = ({ data, setData, results }) => {
           <Output label="DSCR" value={fmtNum(results.dscr)} emphasis status={results.dscr >= 1.25 ? 'positive' : results.dscr >= 1.0 ? undefined : 'negative'} />
           <Output label="Cash-on-Cash" value={fmtPct(results.coc)} emphasis status={results.coc >= 0.08 ? 'positive' : results.coc >= 0 ? undefined : 'negative'} />
           <div className="mt-5 pt-4 border-t border-cream-dark">
-            <Output label="Total Units" value={`${results.totalUnits}`} />
-            <Output label="Total Sqft" value={results.totalSqft.toLocaleString()} />
-            <Output label="Gross Rent (annual)" value={fmtMoney(results.gsi)} />
-            <Output label="Construction Cost" value={fmtMoney(results.constructionCost)} />
-            <Output label="Closing Costs" value={fmtMoney(results.closingCosts)} />
             <Output label="Total Acquisition" value={fmtMoney(results.totalAcq)} />
             <Output label="Effective Gross Income" value={fmtMoney(results.egi)} />
             <Output label="Operating Expenses" value={fmtMoney(results.opex)} sublabel={`${fmtPct(results.opexRatio, 0)} of EGI`} />
@@ -431,158 +219,47 @@ const RentCalculator = ({ data, setData, results }) => {
 };
 
 const defaultSale = {
-  // Multi-unit type sale input
-  unitTypes: [
-    { id: 1, label: 'Unit', count: 0, sizeSqft: 0, salePrice: 0 },
-  ],
-  landCost: 0,
-  // Hard cost mode and values
-  hardCostsMode: 'total', // 'total' | 'perUnit' | 'perSf'
-  hardCostsTotal: 0,
-  hardCostsPerUnit: 0,
-  hardCostsPerSf: 0,
-  softCostsPct: 20, financingCostsPct: 5, contingencyPct: 10, devFeePct: 0,
-  saleCostsPct: 6,
+  units: 1, landCost: 0, hardCosts: 0, softCostsPct: 20,
+  financingCostsPct: 5, contingencyPct: 10, devFeePct: 0,
+  salePricePerUnit: 0, saleCostsPct: 6,
 };
 
 const calcSale = (d) => {
-  const unitTypes = d.unitTypes || [];
-  const totalUnits = unitTypes.reduce((s, u) => s + (u.count || 0), 0);
-  const totalSqft = unitTypes.reduce((s, u) => s + (u.count || 0) * (u.sizeSqft || 0), 0);
-  const grossSale = unitTypes.reduce((s, u) => s + (u.count || 0) * (u.salePrice || 0), 0);
-
-  // Hard costs based on mode
-  let hardCosts = 0;
-  if (d.hardCostsMode === 'perUnit') {
-    hardCosts = (d.hardCostsPerUnit || 0) * totalUnits;
-  } else if (d.hardCostsMode === 'perSf') {
-    hardCosts = (d.hardCostsPerSf || 0) * totalSqft;
-  } else {
-    hardCosts = d.hardCostsTotal || 0;
-  }
-
-  const softCosts = hardCosts * (d.softCostsPct / 100);
-  const financingCosts = (hardCosts + softCosts) * (d.financingCostsPct / 100);
-  const subtotal = d.landCost + hardCosts + softCosts + financingCosts;
+  const softCosts = d.hardCosts * (d.softCostsPct / 100);
+  const financingCosts = (d.hardCosts + softCosts) * (d.financingCostsPct / 100);
+  const subtotal = d.landCost + d.hardCosts + softCosts + financingCosts;
   const contingency = subtotal * (d.contingencyPct / 100);
   const preDevFee = subtotal + contingency;
   const devFee = preDevFee * (d.devFeePct / 100);
   const tdc = preDevFee + devFee;
+  const grossSale = d.salePricePerUnit * d.units;
   const saleCosts = grossSale * (d.saleCostsPct / 100);
   const netSale = grossSale - saleCosts;
   const profit = netSale - tdc;
   const margin = netSale > 0 ? profit / netSale : 0;
   const returnOnCost = tdc > 0 ? profit / tdc : 0;
-  const costPerUnit = totalUnits > 0 ? tdc / totalUnits : 0;
-  const costPerSf = totalSqft > 0 ? tdc / totalSqft : 0;
-  return {
-    totalUnits, totalSqft, hardCosts, softCosts, financingCosts, contingency, devFee, tdc,
-    grossSale, saleCosts, netSale, profit, margin, returnOnCost, costPerUnit, costPerSf
-  };
+  const costPerUnit = d.units > 0 ? tdc / d.units : 0;
+  return { softCosts, financingCosts, contingency, devFee, tdc, grossSale, saleCosts, netSale, profit, margin, returnOnCost, costPerUnit };
 };
 
 const SaleCalculator = ({ data, setData, results }) => {
   const up = (k) => (v) => setData({ ...data, [k]: v });
-
-  const updateUnit = (id, newUnit) => {
-    setData({ ...data, unitTypes: data.unitTypes.map(u => u.id === id ? newUnit : u) });
-  };
-  const addUnit = () => {
-    const newId = Math.max(0, ...data.unitTypes.map(u => u.id)) + 1;
-    setData({ ...data, unitTypes: [...data.unitTypes, { id: newId, label: 'Unit', count: 0, sizeSqft: 0, salePrice: 0 }] });
-  };
-  const removeUnit = (id) => {
-    if (data.unitTypes.length === 1) return;
-    setData({ ...data, unitTypes: data.unitTypes.filter(u => u.id !== id) });
-  };
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
       <div className="lg:col-span-3">
-        <Section title="Land" icon={Building2}>
+        <Section title="Project" icon={Building2}>
+          <NumberInput label="Units" value={data.units} onChange={up('units')} step={1} />
           <NumberInput label="Land / Acquisition" prefix="$" value={data.landCost} onChange={up('landCost')} step={1000} />
         </Section>
-
-        <div className="mb-7">
-          <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate">
-            <div className="flex items-center gap-2">
-              <Building2 size={13} className="text-slate-blue" strokeWidth={1.5} />
-              <h3 className="text-[10px] font-body font-semibold uppercase tracking-[0.18em] text-navy">Sale — Unit Types</h3>
-            </div>
-            <button onClick={addUnit} className="flex items-center gap-1 text-[10px] font-body font-semibold uppercase tracking-[0.12em] text-slate-blue hover:text-navy transition-colors">
-              <Plus size={11} strokeWidth={2} /> Add Unit Type
-            </button>
-          </div>
-          <UnitTypeRowHeader mode="sale" />
-          <div className="space-y-2">
-            {data.unitTypes.map(unit => (
-              <UnitTypeRow
-                key={unit.id}
-                unit={unit}
-                onChange={(updated) => updateUnit(unit.id, updated)}
-                onRemove={() => removeUnit(unit.id)}
-                mode="sale"
-              />
-            ))}
-          </div>
-          <div className="mt-3 px-3 text-xs font-body italic text-charcoal-muted">
-            Totals: <span className="font-mono not-italic">{results.totalUnits}</span> units,{' '}
-            <span className="font-mono not-italic">{results.totalSqft.toLocaleString()}</span> sf,{' '}
-            <span className="font-mono not-italic">{fmtMoney(results.grossSale)}</span> gross sale
-          </div>
-        </div>
-
-        <div className="mb-7">
-          <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate gap-3 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Building2 size={13} className="text-slate-blue" strokeWidth={1.5} />
-              <h3 className="text-[10px] font-body font-semibold uppercase tracking-[0.18em] text-navy">Hard Costs</h3>
-            </div>
-            <ModeSelector
-              value={data.hardCostsMode}
-              onChange={up('hardCostsMode')}
-              options={[
-                { value: 'total', label: 'Total' },
-                { value: 'perUnit', label: 'Per Unit' },
-                { value: 'perSf', label: 'Per SF' },
-              ]}
-            />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {data.hardCostsMode === 'total' && (
-              <NumberInput label="Hard Costs (total)" prefix="$" value={data.hardCostsTotal} onChange={up('hardCostsTotal')} step={1000} hint="construction" />
-            )}
-            {data.hardCostsMode === 'perUnit' && (
-              <>
-                <NumberInput label="Cost per Unit" prefix="$" value={data.hardCostsPerUnit} onChange={up('hardCostsPerUnit')} step={1000} />
-                <div className="flex items-end">
-                  <div className="text-xs font-body italic text-charcoal-muted">
-                    Total: <span className="font-mono not-italic">{fmtMoney(results.hardCosts)}</span> ({results.totalUnits} units)
-                  </div>
-                </div>
-              </>
-            )}
-            {data.hardCostsMode === 'perSf' && (
-              <>
-                <NumberInput label="Cost per Square Foot" prefix="$" suffix="/sf" value={data.hardCostsPerSf} onChange={up('hardCostsPerSf')} step={1} />
-                <div className="flex items-end">
-                  <div className="text-xs font-body italic text-charcoal-muted">
-                    Total: <span className="font-mono not-italic">{fmtMoney(results.hardCosts)}</span> ({results.totalSqft.toLocaleString()} sf)
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        <Section title="Other Development Costs">
+        <Section title="Development Costs">
+          <NumberInput label="Hard Costs (total)" prefix="$" value={data.hardCosts} onChange={up('hardCosts')} step={1000} hint="construction" />
           <NumberInput label="Soft Costs" suffix="% of hard" value={data.softCostsPct} onChange={up('softCostsPct')} step={1} hint="arch, eng, legal" />
           <NumberInput label="Financing Costs" suffix="% of H+S" value={data.financingCostsPct} onChange={up('financingCostsPct')} step={0.5} hint="interest, fees" />
           <NumberInput label="Contingency" suffix="%" value={data.contingencyPct} onChange={up('contingencyPct')} step={1} />
           <NumberInput label="Developer Fee" suffix="% of TDC" value={data.devFeePct} onChange={up('devFeePct')} step={1} />
         </Section>
-
-        <Section title="Sale Costs">
+        <Section title="Sale">
+          <NumberInput label="Sale Price (per unit)" prefix="$" value={data.salePricePerUnit} onChange={up('salePricePerUnit')} step={1000} />
           <NumberInput label="Sale Costs" suffix="%" value={data.saleCostsPct} onChange={up('saleCostsPct')} step={0.5} hint="commission, closing" />
         </Section>
       </div>
@@ -596,16 +273,12 @@ const SaleCalculator = ({ data, setData, results }) => {
           <Output label="Profit Margin" value={fmtPct(results.margin)} emphasis status={results.margin >= 0.15 ? 'positive' : results.margin >= 0.10 ? undefined : 'negative'} sublabel="Profit ÷ Net Sale" />
           <Output label="Return on Cost" value={fmtPct(results.returnOnCost)} emphasis status={results.returnOnCost >= 0.20 ? 'positive' : results.returnOnCost >= 0.10 ? undefined : 'negative'} sublabel="Profit ÷ TDC" />
           <div className="mt-5 pt-4 border-t border-cream-dark">
-            <Output label="Total Units" value={`${results.totalUnits}`} />
-            <Output label="Total Sqft" value={results.totalSqft.toLocaleString()} />
-            <Output label="Hard Costs" value={fmtMoney(results.hardCosts)} />
             <Output label="Soft Costs" value={fmtMoney(results.softCosts)} />
             <Output label="Financing Costs" value={fmtMoney(results.financingCosts)} />
             <Output label="Contingency" value={fmtMoney(results.contingency)} />
             <Output label="Developer Fee" value={fmtMoney(results.devFee)} />
             <Output label="Total Development Cost" value={fmtMoney(results.tdc)} />
             <Output label="Cost / Unit" value={fmtMoney(results.costPerUnit)} />
-            <Output label="Cost / SF" value={fmtMoney(results.costPerSf, 2)} />
             <Output label="Gross Sale" value={fmtMoney(results.grossSale)} />
             <Output label="Sale Costs" value={fmtMoney(results.saleCosts)} />
             <Output label="Net Sale Proceeds" value={fmtMoney(results.netSale)} />
@@ -621,9 +294,6 @@ const defaultGap = {
   subsidies: [
     { id: 1, name: 'HOME Funds', amount: 0 },
     { id: 2, name: 'LIHTC Equity', amount: 0 },
-    { id: 3, name: 'Historic Tax Credits', amount: 0 },
-    { id: 4, name: 'CDBG Funds', amount: 0 },
-    { id: 5, name: 'Other Grants', amount: 0 },
   ],
 };
 
@@ -846,251 +516,93 @@ const ComparisonView = ({ rent, sale, comp, setComp, results }) => {
   );
 };
 
-const AuthScreen = ({ onTermsClick }) => {
-  const [mode, setMode] = useState('signup'); // 'signup' | 'login' | 'magic' | 'reset'
+const EmailCaptureModal = ({ open, onSubmit, onSkip }) => {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [info, setInfo] = useState('');
 
-  const reset = () => {
-    setError('');
-    setInfo('');
-  };
+  if (!open) return null;
 
-  const switchMode = (m) => {
-    setMode(m);
-    reset();
-  };
-
-  const validateEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
-
-  const handleSignUp = async () => {
-    reset();
-    if (!validateEmail(email)) return setError('Please enter a valid email');
-    if (password.length < 8) return setError('Password must be at least 8 characters');
-    if (!agreedToTerms) return setError('You must agree to the Terms of Use');
-
+  const handleSubmit = async () => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !trimmedEmail.includes('@')) {
+      setError('Please enter a valid email');
+      return;
+    }
     setSubmitting(true);
-    try {
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: {
-          data: { first_name: firstName.trim() },
-        },
-      });
-      if (signUpError) throw signUpError;
+    setError('');
 
-      // Create profile entry once user exists
-      if (data?.user) {
-        await supabase.from('profiles').upsert({
-          id: data.user.id,
-          first_name: firstName.trim(),
-          email: email.trim(),
-          terms_accepted_at: new Date().toISOString(),
+    // Submits to Formspree (endpoint set via VITE_FORMSPREE_ENDPOINT env var)
+    // Swap to Mailchimp/ConvertKit/etc. by updating this function.
+    const endpoint = import.meta.env.VITE_FORMSPREE_ENDPOINT;
+    try {
+      if (endpoint) {
+        await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ email: trimmedEmail, name: name.trim(), source: 'Deal Lab' }),
         });
       }
-
-      if (data?.user && !data.session) {
-        // Email confirmation enabled
-        setInfo('Check your email to confirm your account, then come back here to log in.');
-      } else {
-        // Auto-signed-in (if email confirmation is disabled)
-        setInfo('Welcome to Deal Lab.');
-      }
+      onSubmit();
     } catch (e) {
-      setError(e.message || 'Sign-up failed');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleLogin = async () => {
-    reset();
-    if (!validateEmail(email)) return setError('Please enter a valid email');
-    if (!password) return setError('Enter your password');
-
-    setSubmitting(true);
-    try {
-      const { error: loginError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-      if (loginError) throw loginError;
-    } catch (e) {
-      setError(e.message || 'Login failed');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleMagicLink = async () => {
-    reset();
-    if (!validateEmail(email)) return setError('Please enter a valid email');
-
-    setSubmitting(true);
-    try {
-      const { error: linkError } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: { emailRedirectTo: window.location.origin },
-      });
-      if (linkError) throw linkError;
-      setInfo('Check your email for a sign-in link.');
-    } catch (e) {
-      setError(e.message || 'Could not send magic link');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handlePasswordReset = async () => {
-    reset();
-    if (!validateEmail(email)) return setError('Please enter a valid email');
-
-    setSubmitting(true);
-    try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: window.location.origin,
-      });
-      if (resetError) throw resetError;
-      setInfo('If an account exists for that email, a password reset link is on its way.');
-    } catch (e) {
-      setError(e.message || 'Could not send reset link');
+      // Fail silently, still let them in — they'll still be captured locally
+      onSubmit();
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="paper-bg min-h-screen flex items-center justify-center p-4">
-      <GlobalStyles />
+    <div className="fixed inset-0 z-50 bg-charcoal/60 flex items-center justify-center p-4">
       <div className="bg-cream-light border-2 border-navy max-w-md w-full overflow-hidden rounded shadow-2xl">
         <div className="p-6 bg-navy">
-          <div className="text-[10px] font-body uppercase tracking-[0.3em] text-slate-blue mb-2">Acosta Development</div>
-          <h1 className="font-display text-4xl text-cream leading-none">
-            <span className="display-italic">Deal</span> Lab
-          </h1>
-          <p className="text-xs font-body italic text-slate-blue mt-3">
-            {mode === 'signup' ? 'Create your account to begin' :
-             mode === 'magic' ? 'Sign in via email link' :
-             mode === 'reset' ? 'Reset your password' :
-             'Welcome back'}
-          </p>
+          <div className="text-[10px] font-body uppercase tracking-[0.25em] text-slate-blue mb-1">Before you begin</div>
+          <h3 className="font-display text-3xl display-italic text-cream leading-none">Stay in the loop</h3>
         </div>
-
-        {/* Mode tabs */}
-        <div className="flex border-b border-slate-soft">
-          <button onClick={() => switchMode('signup')} className={`flex-1 py-3 text-[10px] font-body font-semibold uppercase tracking-[0.15em] transition-colors ${mode === 'signup' ? 'bg-cream-light text-navy border-b-2 border-navy' : 'text-charcoal-soft hover:text-navy'}`}>Sign Up</button>
-          <button onClick={() => switchMode('login')} className={`flex-1 py-3 text-[10px] font-body font-semibold uppercase tracking-[0.15em] transition-colors ${mode === 'login' ? 'bg-cream-light text-navy border-b-2 border-navy' : 'text-charcoal-soft hover:text-navy'}`}>Log In</button>
-          <button onClick={() => switchMode('magic')} className={`flex-1 py-3 text-[10px] font-body font-semibold uppercase tracking-[0.15em] transition-colors ${mode === 'magic' ? 'bg-cream-light text-navy border-b-2 border-navy' : 'text-charcoal-soft hover:text-navy'}`}>Magic Link</button>
-        </div>
-
         <div className="p-6 space-y-4">
-          {mode === 'signup' && (
+          <p className="text-sm font-body text-charcoal leading-relaxed">
+            Get occasional updates on new calculators, housing finance insights, and tools from Acosta Development. No spam, unsubscribe anytime.
+          </p>
+          <div className="space-y-3">
             <label className="block">
-              <span className="text-[10px] font-body font-semibold uppercase tracking-[0.12em] text-charcoal-soft">First Name</span>
+              <span className="text-[10px] font-body font-semibold uppercase tracking-[0.12em] text-charcoal-soft">First Name (optional)</span>
               <input
                 type="text"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 className="mt-1 w-full px-3 py-2.5 text-sm font-body bg-white-pure border border-slate-soft focus:border-navy outline-none rounded text-charcoal"
-                placeholder="First Name"
+                placeholder="Jenifer"
               />
             </label>
-          )}
-
-          <label className="block">
-            <span className="text-[10px] font-body font-semibold uppercase tracking-[0.12em] text-charcoal-soft">Email</span>
-            <div className="mt-1 flex items-center border border-slate-soft bg-white-pure rounded focus-within:border-navy">
-              <Mail size={14} className="ml-3 text-charcoal-muted" strokeWidth={1.5} />
+            <label className="block">
+              <span className="text-[10px] font-body font-semibold uppercase tracking-[0.12em] text-charcoal-soft">Email</span>
               <input
                 type="email"
                 value={email}
-                onChange={(e) => { setEmail(e.target.value); reset(); }}
-                className="w-full px-2 py-2.5 text-sm font-body bg-transparent outline-none text-charcoal"
+                onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                className="mt-1 w-full px-3 py-2.5 text-sm font-body bg-white-pure border border-slate-soft focus:border-navy outline-none rounded text-charcoal"
                 placeholder="you@example.com"
+                onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
               />
-            </div>
-          </label>
-
-          {(mode === 'signup' || mode === 'login') && (
-            <label className="block">
-              <span className="text-[10px] font-body font-semibold uppercase tracking-[0.12em] text-charcoal-soft">
-                Password {mode === 'signup' && <span className="text-charcoal-muted normal-case tracking-normal text-[10px]">(8+ characters)</span>}
-              </span>
-              <div className="mt-1 flex items-center border border-slate-soft bg-white-pure rounded focus-within:border-navy">
-                <Lock size={14} className="ml-3 text-charcoal-muted" strokeWidth={1.5} />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => { setPassword(e.target.value); reset(); }}
-                  className="w-full px-2 py-2.5 text-sm font-body bg-transparent outline-none text-charcoal"
-                  placeholder="••••••••"
-                  onKeyDown={(e) => e.key === 'Enter' && (mode === 'signup' ? handleSignUp() : handleLogin())}
-                />
-              </div>
-              {mode === 'login' && (
-                <button
-                  type="button"
-                  onClick={() => switchMode('reset')}
-                  className="text-[10px] font-body text-slate-blue hover:text-navy mt-1.5 underline"
-                >
-                  Forgot password?
-                </button>
-              )}
+              {error && <span className="text-xs text-negative mt-1 block">{error}</span>}
             </label>
-          )}
-
-          {mode === 'signup' && (
-            <label className="flex items-start gap-3 cursor-pointer pt-2">
-              <input
-                type="checkbox"
-                checked={agreedToTerms}
-                onChange={(e) => setAgreedToTerms(e.target.checked)}
-                className="mt-1 w-4 h-4 accent-[#434A60]"
-              />
-              <span className="text-xs font-body text-charcoal leading-relaxed">
-                I agree to the{' '}
-                <button type="button" onClick={onTermsClick} className="text-navy underline hover:text-charcoal">
-                  Terms of Use
-                </button>
-                {' '}and understand this tool is for educational purposes only.
-              </span>
-            </label>
-          )}
-
-          {mode === 'reset' && (
-            <p className="text-xs font-body text-charcoal-soft leading-relaxed bg-cream p-3 rounded">
-              Enter the email tied to your account. We'll send you a link to set a new password.
-              <button type="button" onClick={() => switchMode('login')} className="block text-navy underline hover:text-charcoal mt-1.5">
-                Back to log in
-              </button>
-            </p>
-          )}
-
-          {error && <div className="text-xs text-negative font-body bg-rose-gold-soft p-2 rounded">{error}</div>}
-          {info && <div className="text-xs text-positive font-body bg-cream p-2 rounded">{info}</div>}
-
-          <button
-            onClick={
-              mode === 'signup' ? handleSignUp :
-              mode === 'magic' ? handleMagicLink :
-              mode === 'reset' ? handlePasswordReset :
-              handleLogin
-            }
-            disabled={submitting}
-            className="w-full py-2.5 font-body font-semibold uppercase tracking-[0.15em] text-[10px] bg-navy text-cream hover:bg-charcoal transition-colors rounded disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {submitting ? 'Working...' :
-             mode === 'signup' ? 'Create Account' :
-             mode === 'magic' ? 'Send Magic Link' :
-             mode === 'reset' ? 'Send Reset Link' :
-             'Log In'}
-          </button>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <button
+              onClick={onSkip}
+              className="flex-1 py-2.5 font-body font-semibold uppercase tracking-[0.12em] text-[10px] text-charcoal-soft hover:text-navy transition-colors"
+            >
+              Skip
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
+              className="flex-[2] py-2.5 font-body font-semibold uppercase tracking-[0.15em] text-[10px] bg-navy text-cream hover:bg-charcoal transition-colors rounded disabled:opacity-50"
+            >
+              {submitting ? 'Submitting...' : 'Enter Deal Lab'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1178,11 +690,6 @@ const TermsModal = ({ open, onAccept, viewOnly, onClose }) => {
           </div>
 
           <div>
-            <h4 className="font-display text-xl text-navy mb-1">Indemnification</h4>
-            <p>You agree to indemnify, defend, and hold harmless Acosta Development, Jenifer Acosta, and their officers, employees, contractors, and affiliates from and against any claims, damages, losses, liabilities, costs, or expenses (including reasonable attorneys' fees and court costs) arising from or related to: (a) your use or misuse of this tool; (b) your violation of these Terms of Use; (c) your reliance on any output, calculation, or information from this tool; (d) any decision you make based on this tool; or (e) your violation of any applicable law, regulation, or third-party right. This obligation survives your discontinued use of the tool.</p>
-          </div>
-
-          <div>
             <h4 className="font-display text-xl text-navy mb-1">Intellectual property</h4>
             <p>The tool, its code, design, and content are owned by Acosta Development. You may not copy, redistribute, or resell it without written permission.</p>
           </div>
@@ -1230,22 +737,17 @@ const TermsModal = ({ open, onAccept, viewOnly, onClose }) => {
 };
 
 export default function HousingFinanceApp() {
-  // Auth state
-  const [session, setSession] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [profile, setProfile] = useState(null);
-
-  // App state
   const [tab, setTab] = useState('rent');
   const [rent, setRent] = useState(defaultRent);
   const [sale, setSale] = useState(defaultSale);
   const [gap, setGap] = useState(defaultGap);
   const [comp, setComp] = useState(defaultComp);
   const [deals, setDeals] = useState([]);
-  const [dealsLoading, setDealsLoading] = useState(false);
   const [showDeals, setShowDeals] = useState(false);
   const [dealName, setDealName] = useState('');
   const [saveStatus, setSaveStatus] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(null);
+  const [emailCaptured, setEmailCaptured] = useState(null);
   const [showTermsView, setShowTermsView] = useState(false);
 
   const rentResults = useMemo(() => calcRent(rent), [rent]);
@@ -1253,232 +755,55 @@ export default function HousingFinanceApp() {
   const gapResults = useMemo(() => calcGap(gap), [gap]);
   const compResults = useMemo(() => calcComparison(rent, sale, comp), [rent, sale, comp]);
 
-  // Listen to auth state changes
   useEffect(() => {
-    let mounted = true;
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!mounted) return;
-      setSession(session);
-      setAuthLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      if (!mounted) return;
-      setSession(newSession);
-      setAuthLoading(false);
-    });
-
-    return () => {
-      mounted = false;
-      subscription?.unsubscribe();
-    };
+    try {
+      const storedDeals = localStorage.getItem('dealLab:deals');
+      const storedTerms = localStorage.getItem('dealLab:termsAccepted');
+      const storedEmail = localStorage.getItem('dealLab:emailCaptured');
+      if (storedDeals) {
+        try { setDeals(JSON.parse(storedDeals)); } catch (e) { /* noop */ }
+      }
+      setTermsAccepted(storedTerms === 'true');
+      setEmailCaptured(storedEmail === 'true');
+    } catch (e) {
+      setTermsAccepted(false);
+      setEmailCaptured(false);
+    }
   }, []);
 
-  // When user logs in, fetch their profile and deals from Supabase
-  useEffect(() => {
-    if (!session?.user) {
-      setProfile(null);
-      setDeals([]);
-      return;
-    }
+  const acceptTerms = () => {
+    setTermsAccepted(true);
+    try { localStorage.setItem('dealLab:termsAccepted', 'true'); } catch (e) { /* noop */ }
+  };
 
-    const userId = session.user.id;
-
-    (async () => {
-      // Fetch profile
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (profileData) {
-        setProfile(profileData);
-      } else {
-        // First magic-link login: create a profile if one didn't exist
-        const newProfile = {
-          id: userId,
-          email: session.user.email,
-          first_name: session.user.user_metadata?.first_name || '',
-          terms_accepted_at: new Date().toISOString(),
-        };
-        await supabase.from('profiles').upsert(newProfile);
-        setProfile(newProfile);
-      }
-
-      // Fetch deals
-      setDealsLoading(true);
-      const { data: dealsData } = await supabase
-        .from('deals')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-
-      if (dealsData) {
-        // Map DB shape to app shape
-        const mapped = dealsData.map(d => ({
-          id: d.id,
-          name: d.name,
-          savedAt: d.created_at,
-          rent: d.rent,
-          sale: d.sale,
-          gap: d.gap,
-          comp: d.comp,
-        }));
-        setDeals(mapped);
-      }
-      setDealsLoading(false);
-
-      // One-time migration: if user has localStorage deals, copy them to Supabase
-      try {
-        const localDeals = localStorage.getItem('dealLab:deals');
-        const migrated = localStorage.getItem('dealLab:migratedToSupabase');
-        if (localDeals && !migrated) {
-          const parsed = JSON.parse(localDeals);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const rows = parsed.map(d => ({
-              user_id: userId,
-              name: d.name,
-              rent: d.rent || null,
-              sale: d.sale || null,
-              gap: d.gap || null,
-              comp: d.comp || null,
-            }));
-            await supabase.from('deals').insert(rows);
-            localStorage.setItem('dealLab:migratedToSupabase', 'true');
-            // Re-fetch
-            const { data: refreshed } = await supabase
-              .from('deals')
-              .select('*')
-              .eq('user_id', userId)
-              .order('created_at', { ascending: false });
-            if (refreshed) {
-              setDeals(refreshed.map(d => ({
-                id: d.id,
-                name: d.name,
-                savedAt: d.created_at,
-                rent: d.rent,
-                sale: d.sale,
-                gap: d.gap,
-                comp: d.comp,
-              })));
-            }
-          }
-        }
-      } catch (e) { /* noop */ }
-    })();
-  }, [session]);
-
-  const saveDeal = async () => {
+  const saveDeal = () => {
     if (!dealName.trim()) {
       setSaveStatus('Enter a deal name');
       setTimeout(() => setSaveStatus(''), 2000);
       return;
     }
-    if (!session?.user) {
-      setSaveStatus('Not signed in');
-      setTimeout(() => setSaveStatus(''), 2000);
-      return;
-    }
-    setSaveStatus('Saving...');
-    try {
-      const { data, error } = await supabase
-        .from('deals')
-        .insert({
-          user_id: session.user.id,
-          name: dealName.trim(),
-          rent, sale, gap, comp,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      const newDeal = {
-        id: data.id,
-        name: data.name,
-        savedAt: data.created_at,
-        rent: data.rent,
-        sale: data.sale,
-        gap: data.gap,
-        comp: data.comp,
-      };
-      setDeals([newDeal, ...deals]);
-      setDealName('');
-      setSaveStatus('Saved');
-      setTimeout(() => setSaveStatus(''), 2000);
-    } catch (e) {
-      setSaveStatus('Save failed');
-      setTimeout(() => setSaveStatus(''), 3000);
-    }
+    const newDeal = { id: Date.now().toString(), name: dealName.trim(), savedAt: new Date().toISOString(), rent, sale, gap, comp };
+    const newDeals = [newDeal, ...deals];
+    setDeals(newDeals);
+    setDealName('');
+    setSaveStatus('Saved');
+    setTimeout(() => setSaveStatus(''), 2000);
+    try { localStorage.setItem('dealLab:deals', JSON.stringify(newDeals)); } catch (e) { /* noop */ }
   };
 
   const loadDeal = (deal) => {
-    const migrateRent = (r) => {
-      if (!r) return defaultRent;
-      if (r.unitTypes) return { ...defaultRent, ...r };
-      return {
-        ...defaultRent,
-        purchasePrice: r.purchasePrice || 0,
-        constructionMode: 'total',
-        constructionTotal: r.rehab || 0,
-        closingCostsPct: (r.closingCosts && r.purchasePrice) ? (r.closingCosts / (r.purchasePrice + (r.rehab || 0)) * 100) : 3,
-        unitTypes: [{ id: 1, label: 'Unit', count: r.units || 1, sizeSqft: 0, rentMonthly: r.grossMonthlyRent || 0 }],
-        otherIncomeMonthly: r.otherIncomeMonthly || 0,
-        vacancyPct: r.vacancyPct ?? 5,
-        taxesAnnual: r.taxesAnnual || 0,
-        insuranceAnnual: r.insuranceAnnual || 0,
-        pmPctOfEGI: r.pmPctOfEGI ?? 8,
-        maintenancePctOfEGI: r.maintenancePctOfEGI ?? 5,
-        reservesPerUnit: r.reservesPerUnit ?? 300,
-        utilitiesAnnual: r.utilitiesAnnual || 0,
-        otherOpexAnnual: r.otherOpexAnnual || 0,
-        ltvPct: r.ltvPct ?? 75,
-        ratePct: r.ratePct ?? 6.5,
-        amortYears: r.amortYears ?? 20,
-        loanTerm: r.loanTerm ?? 5,
-      };
-    };
-    const migrateSale = (s) => {
-      if (!s) return defaultSale;
-      if (s.unitTypes) return { ...defaultSale, ...s };
-      return {
-        ...defaultSale,
-        landCost: s.landCost || 0,
-        hardCostsMode: 'total',
-        hardCostsTotal: s.hardCosts || 0,
-        softCostsPct: s.softCostsPct ?? 20,
-        financingCostsPct: s.financingCostsPct ?? 5,
-        contingencyPct: s.contingencyPct ?? 10,
-        devFeePct: s.devFeePct ?? 0,
-        saleCostsPct: s.saleCostsPct ?? 6,
-        unitTypes: [{ id: 1, label: 'Unit', count: s.units || 1, sizeSqft: 0, salePrice: s.salePricePerUnit || 0 }],
-      };
-    };
-
-    if (deal.rent) setRent(migrateRent(deal.rent));
-    if (deal.sale) setSale(migrateSale(deal.sale));
-    if (deal.gap) setGap({ ...defaultGap, ...deal.gap });
-    if (deal.comp) setComp({ ...defaultComp, ...deal.comp });
+    if (deal.rent) setRent(deal.rent);
+    if (deal.sale) setSale(deal.sale);
+    if (deal.gap) setGap(deal.gap);
+    if (deal.comp) setComp(deal.comp);
     setDealName(deal.name);
     setShowDeals(false);
   };
 
-  const deleteDeal = async (id) => {
-    setDeals(deals.filter(d => d.id !== id));
-    try {
-      await supabase.from('deals').delete().eq('id', id);
-    } catch (e) { /* noop */ }
-  };
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    setRent(defaultRent);
-    setSale(defaultSale);
-    setGap(defaultGap);
-    setComp(defaultComp);
-    setDealName('');
+  const deleteDeal = (id) => {
+    const newDeals = deals.filter(d => d.id !== id);
+    setDeals(newDeals);
+    try { localStorage.setItem('dealLab:deals', JSON.stringify(newDeals)); } catch (e) { /* noop */ }
   };
 
   const tabs = [
@@ -1495,8 +820,7 @@ export default function HousingFinanceApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saleResults.tdc]);
 
-  // Loading screen while checking auth
-  if (authLoading) {
+  if (termsAccepted === null || emailCaptured === null) {
     return (
       <div className="paper-bg min-h-screen flex items-center justify-center">
         <GlobalStyles />
@@ -1505,17 +829,6 @@ export default function HousingFinanceApp() {
     );
   }
 
-  // Show auth screen if not logged in
-  if (!session) {
-    return (
-      <>
-        <AuthScreen onTermsClick={() => setShowTermsView(true)} />
-        <TermsModal open={showTermsView} viewOnly onClose={() => setShowTermsView(false)} />
-      </>
-    );
-  }
-
-  // Main app for authenticated users
   return (
     <div className="paper-bg min-h-screen font-body text-charcoal">
       <GlobalStyles />
@@ -1528,7 +841,7 @@ export default function HousingFinanceApp() {
               <span className="display-italic">Deal</span> <span>Lab</span>
             </h1>
             <div className="text-xs font-body italic text-slate-blue mt-3 tracking-wide">
-              {profile?.first_name ? `Welcome back, ${profile.first_name}.` : 'Housing finance calculators for sale, rent, and gap analysis.'}
+              Housing finance calculators for sale, rent, and gap analysis.
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -1544,9 +857,6 @@ export default function HousingFinanceApp() {
             </button>
             <button onClick={() => setShowDeals(true)} className="flex items-center gap-1.5 px-4 py-2 text-[10px] font-body font-semibold uppercase tracking-[0.15em] border border-cream text-cream hover:bg-cream hover:text-navy transition-colors rounded">
               <FolderOpen size={12} strokeWidth={2} /> Load
-            </button>
-            <button onClick={handleSignOut} className="flex items-center gap-1.5 px-3 py-2 text-[10px] font-body font-semibold uppercase tracking-[0.15em] text-slate-blue hover:text-cream transition-colors rounded" title="Sign out">
-              <LogOut size={12} strokeWidth={2} /> Sign Out
             </button>
           </div>
         </div>
@@ -1589,13 +899,25 @@ export default function HousingFinanceApp() {
             <button onClick={() => setShowTermsView(true)} className="flex items-center gap-1 text-[10px] font-body font-semibold uppercase tracking-[0.15em] text-navy hover:text-slate-blue transition-colors">
               <FileText size={11} strokeWidth={1.5} /> Terms of Use
             </button>
-            <span className="text-[10px] font-body text-charcoal-muted">v2.0</span>
+            <span className="text-[10px] font-body text-charcoal-muted">v1.0</span>
           </div>
         </div>
       </footer>
 
-      <SavedDeals open={showDeals} onClose={() => setShowDeals(false)} deals={deals} onLoad={loadDeal} onDelete={deleteDeal} loading={dealsLoading} />
+      <SavedDeals open={showDeals} onClose={() => setShowDeals(false)} deals={deals} onLoad={loadDeal} onDelete={deleteDeal} />
+      <TermsModal open={!termsAccepted} onAccept={acceptTerms} />
       <TermsModal open={showTermsView} viewOnly onClose={() => setShowTermsView(false)} />
+      <EmailCaptureModal
+        open={termsAccepted && !emailCaptured}
+        onSubmit={() => {
+          setEmailCaptured(true);
+          try { localStorage.setItem('dealLab:emailCaptured', 'true'); } catch (e) { /* noop */ }
+        }}
+        onSkip={() => {
+          setEmailCaptured(true);
+          try { localStorage.setItem('dealLab:emailCaptured', 'skipped'); } catch (e) { /* noop */ }
+        }}
+      />
     </div>
   );
 }

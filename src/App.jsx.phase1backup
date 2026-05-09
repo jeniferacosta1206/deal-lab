@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Home, Building2, Layers, GitCompare, Save, Trash2, FolderOpen, Plus, X, TrendingUp, TrendingDown, FileText, LogOut, Mail, Lock } from 'lucide-react';
-import { supabase } from './supabase';
+import { Home, Building2, Layers, GitCompare, Save, Trash2, FolderOpen, Plus, X, TrendingUp, TrendingDown, FileText } from 'lucide-react';
 
 // ============================================================
 // ACOSTA BRAND TOKENS
@@ -233,7 +232,7 @@ const defaultRent = {
   otherIncomeMonthly: 0, vacancyPct: 5,
   taxesAnnual: 0, insuranceAnnual: 0, pmPctOfEGI: 8, maintenancePctOfEGI: 5,
   reservesPerUnit: 300, utilitiesAnnual: 0, otherOpexAnnual: 0,
-  ltvPct: 75, ratePct: 6.5, amortYears: 20, loanTerm: 5,
+  ltvPct: 75, ratePct: 7.0, amortYears: 30,
 };
 
 const calcRent = (d) => {
@@ -396,8 +395,7 @@ const RentCalculator = ({ data, setData, results }) => {
         <Section title="Financing">
           <NumberInput label="LTV" suffix="%" value={data.ltvPct} onChange={up('ltvPct')} step={1} />
           <NumberInput label="Interest Rate" suffix="%" value={data.ratePct} onChange={up('ratePct')} step={0.125} />
-          <NumberInput label="Loan Term" suffix="years" value={data.loanTerm} onChange={up('loanTerm')} step={1} hint="balloon / maturity" />
-          <NumberInput label="Amortization" suffix="years" value={data.amortYears} onChange={up('amortYears')} step={1} hint="payment basis" />
+          <NumberInput label="Amortization" suffix="years" value={data.amortYears} onChange={up('amortYears')} step={1} />
         </Section>
       </div>
       <div className="lg:col-span-2">
@@ -846,251 +844,85 @@ const ComparisonView = ({ rent, sale, comp, setComp, results }) => {
   );
 };
 
-const AuthScreen = ({ onTermsClick }) => {
-  const [mode, setMode] = useState('signup'); // 'signup' | 'login' | 'magic' | 'reset'
+const EmailCaptureModal = ({ open, onSubmit }) => {
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [info, setInfo] = useState('');
 
-  const reset = () => {
-    setError('');
-    setInfo('');
-  };
+  if (!open) return null;
 
-  const switchMode = (m) => {
-    setMode(m);
-    reset();
-  };
-
-  const validateEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
-
-  const handleSignUp = async () => {
-    reset();
-    if (!validateEmail(email)) return setError('Please enter a valid email');
-    if (password.length < 8) return setError('Password must be at least 8 characters');
-    if (!agreedToTerms) return setError('You must agree to the Terms of Use');
-
+  const handleSubmit = async () => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !trimmedEmail.includes('@') || !trimmedEmail.includes('.')) {
+      setError('Please enter a valid email');
+      return;
+    }
     setSubmitting(true);
-    try {
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: {
-          data: { first_name: firstName.trim() },
-        },
-      });
-      if (signUpError) throw signUpError;
+    setError('');
 
-      // Create profile entry once user exists
-      if (data?.user) {
-        await supabase.from('profiles').upsert({
-          id: data.user.id,
-          first_name: firstName.trim(),
-          email: email.trim(),
-          terms_accepted_at: new Date().toISOString(),
+    const endpoint = import.meta.env.VITE_FORMSPREE_ENDPOINT;
+    try {
+      if (endpoint) {
+        await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ email: trimmedEmail, name: name.trim(), source: 'Deal Lab' }),
         });
       }
-
-      if (data?.user && !data.session) {
-        // Email confirmation enabled
-        setInfo('Check your email to confirm your account, then come back here to log in.');
-      } else {
-        // Auto-signed-in (if email confirmation is disabled)
-        setInfo('Welcome to Deal Lab.');
-      }
+      onSubmit(trimmedEmail);
     } catch (e) {
-      setError(e.message || 'Sign-up failed');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleLogin = async () => {
-    reset();
-    if (!validateEmail(email)) return setError('Please enter a valid email');
-    if (!password) return setError('Enter your password');
-
-    setSubmitting(true);
-    try {
-      const { error: loginError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
-      if (loginError) throw loginError;
-    } catch (e) {
-      setError(e.message || 'Login failed');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleMagicLink = async () => {
-    reset();
-    if (!validateEmail(email)) return setError('Please enter a valid email');
-
-    setSubmitting(true);
-    try {
-      const { error: linkError } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
-        options: { emailRedirectTo: window.location.origin },
-      });
-      if (linkError) throw linkError;
-      setInfo('Check your email for a sign-in link.');
-    } catch (e) {
-      setError(e.message || 'Could not send magic link');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handlePasswordReset = async () => {
-    reset();
-    if (!validateEmail(email)) return setError('Please enter a valid email');
-
-    setSubmitting(true);
-    try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-        redirectTo: window.location.origin,
-      });
-      if (resetError) throw resetError;
-      setInfo('If an account exists for that email, a password reset link is on its way.');
-    } catch (e) {
-      setError(e.message || 'Could not send reset link');
+      onSubmit(trimmedEmail);
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="paper-bg min-h-screen flex items-center justify-center p-4">
-      <GlobalStyles />
+    <div className="fixed inset-0 z-50 bg-charcoal/60 flex items-center justify-center p-4">
       <div className="bg-cream-light border-2 border-navy max-w-md w-full overflow-hidden rounded shadow-2xl">
         <div className="p-6 bg-navy">
-          <div className="text-[10px] font-body uppercase tracking-[0.3em] text-slate-blue mb-2">Acosta Development</div>
-          <h1 className="font-display text-4xl text-cream leading-none">
-            <span className="display-italic">Deal</span> Lab
-          </h1>
-          <p className="text-xs font-body italic text-slate-blue mt-3">
-            {mode === 'signup' ? 'Create your account to begin' :
-             mode === 'magic' ? 'Sign in via email link' :
-             mode === 'reset' ? 'Reset your password' :
-             'Welcome back'}
-          </p>
+          <div className="text-[10px] font-body uppercase tracking-[0.25em] text-slate-blue mb-1">Required to continue</div>
+          <h3 className="font-display text-3xl display-italic text-cream leading-none">Enter your email</h3>
         </div>
-
-        {/* Mode tabs */}
-        <div className="flex border-b border-slate-soft">
-          <button onClick={() => switchMode('signup')} className={`flex-1 py-3 text-[10px] font-body font-semibold uppercase tracking-[0.15em] transition-colors ${mode === 'signup' ? 'bg-cream-light text-navy border-b-2 border-navy' : 'text-charcoal-soft hover:text-navy'}`}>Sign Up</button>
-          <button onClick={() => switchMode('login')} className={`flex-1 py-3 text-[10px] font-body font-semibold uppercase tracking-[0.15em] transition-colors ${mode === 'login' ? 'bg-cream-light text-navy border-b-2 border-navy' : 'text-charcoal-soft hover:text-navy'}`}>Log In</button>
-          <button onClick={() => switchMode('magic')} className={`flex-1 py-3 text-[10px] font-body font-semibold uppercase tracking-[0.15em] transition-colors ${mode === 'magic' ? 'bg-cream-light text-navy border-b-2 border-navy' : 'text-charcoal-soft hover:text-navy'}`}>Magic Link</button>
-        </div>
-
         <div className="p-6 space-y-4">
-          {mode === 'signup' && (
+          <p className="text-sm font-body text-charcoal leading-relaxed">
+            Deal Lab is a free educational tool from Acosta Development. We ask for your email to track usage and share occasional updates on new calculators and housing finance insights. Unsubscribe anytime.
+          </p>
+          <div className="space-y-3">
             <label className="block">
-              <span className="text-[10px] font-body font-semibold uppercase tracking-[0.12em] text-charcoal-soft">First Name</span>
+              <span className="text-[10px] font-body font-semibold uppercase tracking-[0.12em] text-charcoal-soft">First Name (optional)</span>
               <input
                 type="text"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
                 className="mt-1 w-full px-3 py-2.5 text-sm font-body bg-white-pure border border-slate-soft focus:border-navy outline-none rounded text-charcoal"
-                placeholder="First Name"
+                placeholder="Jenifer"
               />
             </label>
-          )}
-
-          <label className="block">
-            <span className="text-[10px] font-body font-semibold uppercase tracking-[0.12em] text-charcoal-soft">Email</span>
-            <div className="mt-1 flex items-center border border-slate-soft bg-white-pure rounded focus-within:border-navy">
-              <Mail size={14} className="ml-3 text-charcoal-muted" strokeWidth={1.5} />
+            <label className="block">
+              <span className="text-[10px] font-body font-semibold uppercase tracking-[0.12em] text-charcoal-soft">Email <span className="text-negative">*</span></span>
               <input
                 type="email"
                 value={email}
-                onChange={(e) => { setEmail(e.target.value); reset(); }}
-                className="w-full px-2 py-2.5 text-sm font-body bg-transparent outline-none text-charcoal"
+                onChange={(e) => { setEmail(e.target.value); setError(''); }}
+                className="mt-1 w-full px-3 py-2.5 text-sm font-body bg-white-pure border border-slate-soft focus:border-navy outline-none rounded text-charcoal"
                 placeholder="you@example.com"
+                onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+                required
               />
-            </div>
-          </label>
-
-          {(mode === 'signup' || mode === 'login') && (
-            <label className="block">
-              <span className="text-[10px] font-body font-semibold uppercase tracking-[0.12em] text-charcoal-soft">
-                Password {mode === 'signup' && <span className="text-charcoal-muted normal-case tracking-normal text-[10px]">(8+ characters)</span>}
-              </span>
-              <div className="mt-1 flex items-center border border-slate-soft bg-white-pure rounded focus-within:border-navy">
-                <Lock size={14} className="ml-3 text-charcoal-muted" strokeWidth={1.5} />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => { setPassword(e.target.value); reset(); }}
-                  className="w-full px-2 py-2.5 text-sm font-body bg-transparent outline-none text-charcoal"
-                  placeholder="••••••••"
-                  onKeyDown={(e) => e.key === 'Enter' && (mode === 'signup' ? handleSignUp() : handleLogin())}
-                />
-              </div>
-              {mode === 'login' && (
-                <button
-                  type="button"
-                  onClick={() => switchMode('reset')}
-                  className="text-[10px] font-body text-slate-blue hover:text-navy mt-1.5 underline"
-                >
-                  Forgot password?
-                </button>
-              )}
+              {error && <span className="text-xs text-negative mt-1 block">{error}</span>}
             </label>
-          )}
-
-          {mode === 'signup' && (
-            <label className="flex items-start gap-3 cursor-pointer pt-2">
-              <input
-                type="checkbox"
-                checked={agreedToTerms}
-                onChange={(e) => setAgreedToTerms(e.target.checked)}
-                className="mt-1 w-4 h-4 accent-[#434A60]"
-              />
-              <span className="text-xs font-body text-charcoal leading-relaxed">
-                I agree to the{' '}
-                <button type="button" onClick={onTermsClick} className="text-navy underline hover:text-charcoal">
-                  Terms of Use
-                </button>
-                {' '}and understand this tool is for educational purposes only.
-              </span>
-            </label>
-          )}
-
-          {mode === 'reset' && (
-            <p className="text-xs font-body text-charcoal-soft leading-relaxed bg-cream p-3 rounded">
-              Enter the email tied to your account. We'll send you a link to set a new password.
-              <button type="button" onClick={() => switchMode('login')} className="block text-navy underline hover:text-charcoal mt-1.5">
-                Back to log in
-              </button>
-            </p>
-          )}
-
-          {error && <div className="text-xs text-negative font-body bg-rose-gold-soft p-2 rounded">{error}</div>}
-          {info && <div className="text-xs text-positive font-body bg-cream p-2 rounded">{info}</div>}
-
-          <button
-            onClick={
-              mode === 'signup' ? handleSignUp :
-              mode === 'magic' ? handleMagicLink :
-              mode === 'reset' ? handlePasswordReset :
-              handleLogin
-            }
-            disabled={submitting}
-            className="w-full py-2.5 font-body font-semibold uppercase tracking-[0.15em] text-[10px] bg-navy text-cream hover:bg-charcoal transition-colors rounded disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {submitting ? 'Working...' :
-             mode === 'signup' ? 'Create Account' :
-             mode === 'magic' ? 'Send Magic Link' :
-             mode === 'reset' ? 'Send Reset Link' :
-             'Log In'}
-          </button>
+          </div>
+          <div className="pt-2">
+            <button
+              onClick={handleSubmit}
+              disabled={submitting || !email.trim()}
+              className="w-full py-2.5 font-body font-semibold uppercase tracking-[0.15em] text-[10px] bg-navy text-cream hover:bg-charcoal transition-colors rounded disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? 'Submitting...' : 'Enter Deal Lab'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1230,22 +1062,17 @@ const TermsModal = ({ open, onAccept, viewOnly, onClose }) => {
 };
 
 export default function HousingFinanceApp() {
-  // Auth state
-  const [session, setSession] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [profile, setProfile] = useState(null);
-
-  // App state
   const [tab, setTab] = useState('rent');
   const [rent, setRent] = useState(defaultRent);
   const [sale, setSale] = useState(defaultSale);
   const [gap, setGap] = useState(defaultGap);
   const [comp, setComp] = useState(defaultComp);
   const [deals, setDeals] = useState([]);
-  const [dealsLoading, setDealsLoading] = useState(false);
   const [showDeals, setShowDeals] = useState(false);
   const [dealName, setDealName] = useState('');
   const [saveStatus, setSaveStatus] = useState('');
+  const [termsAccepted, setTermsAccepted] = useState(null);
+  const [emailCaptured, setEmailCaptured] = useState(null);
   const [showTermsView, setShowTermsView] = useState(false);
 
   const rentResults = useMemo(() => calcRent(rent), [rent]);
@@ -1253,171 +1080,48 @@ export default function HousingFinanceApp() {
   const gapResults = useMemo(() => calcGap(gap), [gap]);
   const compResults = useMemo(() => calcComparison(rent, sale, comp), [rent, sale, comp]);
 
-  // Listen to auth state changes
   useEffect(() => {
-    let mounted = true;
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!mounted) return;
-      setSession(session);
-      setAuthLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      if (!mounted) return;
-      setSession(newSession);
-      setAuthLoading(false);
-    });
-
-    return () => {
-      mounted = false;
-      subscription?.unsubscribe();
-    };
+    try {
+      const storedDeals = localStorage.getItem('dealLab:deals');
+      const storedTerms = localStorage.getItem('dealLab:termsAccepted');
+      const storedEmail = localStorage.getItem('dealLab:emailCaptured');
+      if (storedDeals) {
+        try { setDeals(JSON.parse(storedDeals)); } catch (e) { /* noop */ }
+      }
+      setTermsAccepted(storedTerms === 'true');
+      setEmailCaptured(storedEmail === 'true');
+    } catch (e) {
+      setTermsAccepted(false);
+      setEmailCaptured(false);
+    }
   }, []);
 
-  // When user logs in, fetch their profile and deals from Supabase
-  useEffect(() => {
-    if (!session?.user) {
-      setProfile(null);
-      setDeals([]);
-      return;
-    }
+  const acceptTerms = () => {
+    setTermsAccepted(true);
+    try { localStorage.setItem('dealLab:termsAccepted', 'true'); } catch (e) { /* noop */ }
+  };
 
-    const userId = session.user.id;
-
-    (async () => {
-      // Fetch profile
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (profileData) {
-        setProfile(profileData);
-      } else {
-        // First magic-link login: create a profile if one didn't exist
-        const newProfile = {
-          id: userId,
-          email: session.user.email,
-          first_name: session.user.user_metadata?.first_name || '',
-          terms_accepted_at: new Date().toISOString(),
-        };
-        await supabase.from('profiles').upsert(newProfile);
-        setProfile(newProfile);
-      }
-
-      // Fetch deals
-      setDealsLoading(true);
-      const { data: dealsData } = await supabase
-        .from('deals')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
-
-      if (dealsData) {
-        // Map DB shape to app shape
-        const mapped = dealsData.map(d => ({
-          id: d.id,
-          name: d.name,
-          savedAt: d.created_at,
-          rent: d.rent,
-          sale: d.sale,
-          gap: d.gap,
-          comp: d.comp,
-        }));
-        setDeals(mapped);
-      }
-      setDealsLoading(false);
-
-      // One-time migration: if user has localStorage deals, copy them to Supabase
-      try {
-        const localDeals = localStorage.getItem('dealLab:deals');
-        const migrated = localStorage.getItem('dealLab:migratedToSupabase');
-        if (localDeals && !migrated) {
-          const parsed = JSON.parse(localDeals);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            const rows = parsed.map(d => ({
-              user_id: userId,
-              name: d.name,
-              rent: d.rent || null,
-              sale: d.sale || null,
-              gap: d.gap || null,
-              comp: d.comp || null,
-            }));
-            await supabase.from('deals').insert(rows);
-            localStorage.setItem('dealLab:migratedToSupabase', 'true');
-            // Re-fetch
-            const { data: refreshed } = await supabase
-              .from('deals')
-              .select('*')
-              .eq('user_id', userId)
-              .order('created_at', { ascending: false });
-            if (refreshed) {
-              setDeals(refreshed.map(d => ({
-                id: d.id,
-                name: d.name,
-                savedAt: d.created_at,
-                rent: d.rent,
-                sale: d.sale,
-                gap: d.gap,
-                comp: d.comp,
-              })));
-            }
-          }
-        }
-      } catch (e) { /* noop */ }
-    })();
-  }, [session]);
-
-  const saveDeal = async () => {
+  const saveDeal = () => {
     if (!dealName.trim()) {
       setSaveStatus('Enter a deal name');
       setTimeout(() => setSaveStatus(''), 2000);
       return;
     }
-    if (!session?.user) {
-      setSaveStatus('Not signed in');
-      setTimeout(() => setSaveStatus(''), 2000);
-      return;
-    }
-    setSaveStatus('Saving...');
-    try {
-      const { data, error } = await supabase
-        .from('deals')
-        .insert({
-          user_id: session.user.id,
-          name: dealName.trim(),
-          rent, sale, gap, comp,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      const newDeal = {
-        id: data.id,
-        name: data.name,
-        savedAt: data.created_at,
-        rent: data.rent,
-        sale: data.sale,
-        gap: data.gap,
-        comp: data.comp,
-      };
-      setDeals([newDeal, ...deals]);
-      setDealName('');
-      setSaveStatus('Saved');
-      setTimeout(() => setSaveStatus(''), 2000);
-    } catch (e) {
-      setSaveStatus('Save failed');
-      setTimeout(() => setSaveStatus(''), 3000);
-    }
+    const newDeal = { id: Date.now().toString(), name: dealName.trim(), savedAt: new Date().toISOString(), rent, sale, gap, comp };
+    const newDeals = [newDeal, ...deals];
+    setDeals(newDeals);
+    setDealName('');
+    setSaveStatus('Saved');
+    setTimeout(() => setSaveStatus(''), 2000);
+    try { localStorage.setItem('dealLab:deals', JSON.stringify(newDeals)); } catch (e) { /* noop */ }
   };
 
   const loadDeal = (deal) => {
+    // Migrate old rent shape (had grossMonthlyRent, units, rehab, closingCosts as $) to new
     const migrateRent = (r) => {
       if (!r) return defaultRent;
-      if (r.unitTypes) return { ...defaultRent, ...r };
+      if (r.unitTypes) return { ...defaultRent, ...r }; // already new shape
+      // Old shape: build a single unit type from old fields
       return {
         ...defaultRent,
         purchasePrice: r.purchasePrice || 0,
@@ -1435,11 +1139,11 @@ export default function HousingFinanceApp() {
         utilitiesAnnual: r.utilitiesAnnual || 0,
         otherOpexAnnual: r.otherOpexAnnual || 0,
         ltvPct: r.ltvPct ?? 75,
-        ratePct: r.ratePct ?? 6.5,
-        amortYears: r.amortYears ?? 20,
-        loanTerm: r.loanTerm ?? 5,
+        ratePct: r.ratePct ?? 7.0,
+        amortYears: r.amortYears ?? 30,
       };
     };
+    // Migrate old sale shape
     const migrateSale = (s) => {
       if (!s) return defaultSale;
       if (s.unitTypes) return { ...defaultSale, ...s };
@@ -1465,20 +1169,10 @@ export default function HousingFinanceApp() {
     setShowDeals(false);
   };
 
-  const deleteDeal = async (id) => {
-    setDeals(deals.filter(d => d.id !== id));
-    try {
-      await supabase.from('deals').delete().eq('id', id);
-    } catch (e) { /* noop */ }
-  };
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    setRent(defaultRent);
-    setSale(defaultSale);
-    setGap(defaultGap);
-    setComp(defaultComp);
-    setDealName('');
+  const deleteDeal = (id) => {
+    const newDeals = deals.filter(d => d.id !== id);
+    setDeals(newDeals);
+    try { localStorage.setItem('dealLab:deals', JSON.stringify(newDeals)); } catch (e) { /* noop */ }
   };
 
   const tabs = [
@@ -1495,8 +1189,7 @@ export default function HousingFinanceApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saleResults.tdc]);
 
-  // Loading screen while checking auth
-  if (authLoading) {
+  if (termsAccepted === null || emailCaptured === null) {
     return (
       <div className="paper-bg min-h-screen flex items-center justify-center">
         <GlobalStyles />
@@ -1505,17 +1198,6 @@ export default function HousingFinanceApp() {
     );
   }
 
-  // Show auth screen if not logged in
-  if (!session) {
-    return (
-      <>
-        <AuthScreen onTermsClick={() => setShowTermsView(true)} />
-        <TermsModal open={showTermsView} viewOnly onClose={() => setShowTermsView(false)} />
-      </>
-    );
-  }
-
-  // Main app for authenticated users
   return (
     <div className="paper-bg min-h-screen font-body text-charcoal">
       <GlobalStyles />
@@ -1528,7 +1210,7 @@ export default function HousingFinanceApp() {
               <span className="display-italic">Deal</span> <span>Lab</span>
             </h1>
             <div className="text-xs font-body italic text-slate-blue mt-3 tracking-wide">
-              {profile?.first_name ? `Welcome back, ${profile.first_name}.` : 'Housing finance calculators for sale, rent, and gap analysis.'}
+              Housing finance calculators for sale, rent, and gap analysis.
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -1544,9 +1226,6 @@ export default function HousingFinanceApp() {
             </button>
             <button onClick={() => setShowDeals(true)} className="flex items-center gap-1.5 px-4 py-2 text-[10px] font-body font-semibold uppercase tracking-[0.15em] border border-cream text-cream hover:bg-cream hover:text-navy transition-colors rounded">
               <FolderOpen size={12} strokeWidth={2} /> Load
-            </button>
-            <button onClick={handleSignOut} className="flex items-center gap-1.5 px-3 py-2 text-[10px] font-body font-semibold uppercase tracking-[0.15em] text-slate-blue hover:text-cream transition-colors rounded" title="Sign out">
-              <LogOut size={12} strokeWidth={2} /> Sign Out
             </button>
           </div>
         </div>
@@ -1589,13 +1268,21 @@ export default function HousingFinanceApp() {
             <button onClick={() => setShowTermsView(true)} className="flex items-center gap-1 text-[10px] font-body font-semibold uppercase tracking-[0.15em] text-navy hover:text-slate-blue transition-colors">
               <FileText size={11} strokeWidth={1.5} /> Terms of Use
             </button>
-            <span className="text-[10px] font-body text-charcoal-muted">v2.0</span>
+            <span className="text-[10px] font-body text-charcoal-muted">v1.0</span>
           </div>
         </div>
       </footer>
 
-      <SavedDeals open={showDeals} onClose={() => setShowDeals(false)} deals={deals} onLoad={loadDeal} onDelete={deleteDeal} loading={dealsLoading} />
+      <SavedDeals open={showDeals} onClose={() => setShowDeals(false)} deals={deals} onLoad={loadDeal} onDelete={deleteDeal} />
+      <TermsModal open={!termsAccepted} onAccept={acceptTerms} />
       <TermsModal open={showTermsView} viewOnly onClose={() => setShowTermsView(false)} />
+      <EmailCaptureModal
+        open={termsAccepted && !emailCaptured}
+        onSubmit={() => {
+          setEmailCaptured(true);
+          try { localStorage.setItem('dealLab:emailCaptured', 'true'); } catch (e) { /* noop */ }
+        }}
+      />
     </div>
   );
 }
