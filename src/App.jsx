@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Home, Building2, Layers, GitCompare, Save, Trash2, FolderOpen, Plus, X, TrendingUp, TrendingDown, FileText, LogOut, Mail, Lock } from 'lucide-react';
+import { Home, Building2, Layers, GitCompare, Save, Trash2, FolderOpen, Plus, X, TrendingUp, TrendingDown, FileText, LogOut, Mail, Lock, CreditCard, Sparkles, AlertCircle, Tag } from 'lucide-react';
 import { supabase } from './supabase';
+import { loadStripe } from '@stripe/stripe-js';
+
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 // ============================================================
 // ACOSTA BRAND TOKENS
@@ -1229,6 +1232,215 @@ const TermsModal = ({ open, onAccept, viewOnly, onClose }) => {
   );
 };
 
+// ============================================================
+// PAYWALL HELPERS & COMPONENTS
+// ============================================================
+
+const TRIAL_DAYS = 7;
+
+// Returns days remaining in trial (negative if expired)
+const computeTrialStatus = (profile) => {
+  if (!profile) return { daysRemaining: TRIAL_DAYS, isPaid: false, isExpired: false, isTrial: true };
+  if (profile.paid) return { daysRemaining: 0, isPaid: true, isExpired: false, isTrial: false };
+
+  const trialStart = new Date(profile.trial_started_at || profile.created_at || Date.now());
+  const now = new Date();
+  const elapsedMs = now - trialStart;
+  const elapsedDays = elapsedMs / (1000 * 60 * 60 * 24);
+  const daysRemaining = Math.max(0, Math.ceil(TRIAL_DAYS - elapsedDays));
+  const isExpired = elapsedDays >= TRIAL_DAYS;
+
+  return { daysRemaining, isPaid: false, isExpired, isTrial: !isExpired };
+};
+
+const TrialBanner = ({ profile, onUpgrade }) => {
+  const { daysRemaining, isPaid, isExpired } = computeTrialStatus(profile);
+  if (isPaid) return null;
+
+  const urgencyLevel = isExpired ? 'expired' : daysRemaining <= 2 ? 'urgent' : daysRemaining <= 4 ? 'warning' : 'info';
+  const styles = {
+    info: 'bg-cream-light border-slate-blue text-charcoal',
+    warning: 'bg-cream-dark border-navy text-navy',
+    urgent: 'bg-rose-gold-soft border-negative text-negative',
+    expired: 'bg-negative text-cream',
+  };
+  const messages = {
+    info: `${daysRemaining} days left in your free trial.`,
+    warning: `Only ${daysRemaining} days left in your trial. Upgrade to keep access.`,
+    urgent: `Trial ending soon: ${daysRemaining} day${daysRemaining === 1 ? '' : 's'} remaining.`,
+    expired: `Your free trial has ended. Upgrade to continue using Deal Lab.`,
+  };
+
+  return (
+    <div className={`px-4 md:px-8 py-2.5 border-b-2 ${styles[urgencyLevel]} flex items-center justify-between gap-3 flex-wrap`}>
+      <div className="flex items-center gap-2 text-xs font-body">
+        {urgencyLevel === 'expired' || urgencyLevel === 'urgent' ? <AlertCircle size={14} strokeWidth={2} /> : <Sparkles size={14} strokeWidth={1.5} />}
+        <span className="font-semibold">{messages[urgencyLevel]}</span>
+      </div>
+      <button
+        onClick={onUpgrade}
+        className={`px-3 py-1.5 text-[10px] font-body font-semibold uppercase tracking-[0.15em] rounded transition-colors ${
+          urgencyLevel === 'expired'
+            ? 'bg-cream text-negative hover:bg-white-pure'
+            : 'bg-navy text-cream hover:bg-charcoal'
+        }`}
+      >
+        Upgrade — $99 Lifetime
+      </button>
+    </div>
+  );
+};
+
+const UpgradeModal = ({ open, onClose, session, onPromoSuccess }) => {
+  const [view, setView] = useState('main'); // 'main' | 'promo'
+  const [promoCode, setPromoCode] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
+
+  if (!open) return null;
+
+  const reset = () => { setError(''); setInfo(''); };
+
+  const handlePay = async () => {
+    reset();
+    setSubmitting(true);
+    try {
+      const response = await fetch('/api/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({}),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to start checkout');
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } catch (e) {
+      setError(e.message || 'Could not start checkout');
+      setSubmitting(false);
+    }
+  };
+
+  const handleRedeemPromo = async () => {
+    reset();
+    if (!promoCode.trim()) return setError('Enter a code');
+    setSubmitting(true);
+    try {
+      const { data, error } = await supabase.rpc('redeem_promo_code', { p_code: promoCode.trim() });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || 'Could not redeem code');
+
+      if (data.type === 'free') {
+        setInfo('Code accepted. Lifetime access unlocked!');
+        setTimeout(() => {
+          onPromoSuccess();
+          onClose();
+        }, 1200);
+      } else {
+        setInfo(`${data.discount_percent}% off applied. Continue to checkout.`);
+        // For percent_off, transition to Stripe checkout
+        setTimeout(() => handlePay(), 800);
+      }
+    } catch (e) {
+      setError(e.message || 'Invalid or expired code');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-charcoal/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-cream-light border-2 border-navy max-w-md w-full overflow-hidden rounded shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="p-6 bg-navy">
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-[10px] font-body uppercase tracking-[0.25em] text-slate-blue">Lifetime Access</div>
+            <button onClick={onClose} className="text-slate-blue hover:text-cream"><X size={16} strokeWidth={2} /></button>
+          </div>
+          <h3 className="font-display text-3xl display-italic text-cream leading-none">Unlock Deal Lab</h3>
+        </div>
+
+        <div className="p-6 space-y-4">
+          {view === 'main' && (
+            <>
+              <div className="text-sm font-body text-charcoal leading-relaxed space-y-2">
+                <p>One payment. Lifetime access. No subscriptions.</p>
+                <ul className="space-y-1 text-charcoal-soft">
+                  <li>• All four calculators (For Rent, For Sale, Gap Financing, Comparison)</li>
+                  <li>• Save unlimited deals across any device</li>
+                  <li>• All future updates included</li>
+                </ul>
+              </div>
+
+              <div className="flex items-baseline gap-2 py-3 border-y border-cream-dark">
+                <span className="font-display text-4xl display-italic text-navy">$99</span>
+                <span className="text-xs font-body italic text-charcoal-muted">one-time, lifetime</span>
+              </div>
+
+              {error && <div className="text-xs text-negative font-body bg-rose-gold-soft p-2 rounded">{error}</div>}
+
+              <button
+                onClick={handlePay}
+                disabled={submitting}
+                className="w-full py-3 font-body font-semibold uppercase tracking-[0.15em] text-[10px] bg-navy text-cream hover:bg-charcoal transition-colors rounded disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <CreditCard size={13} strokeWidth={2} />
+                {submitting ? 'Loading checkout...' : 'Pay $99 — Lifetime Access'}
+              </button>
+
+              <button
+                onClick={() => { setView('promo'); reset(); }}
+                className="w-full text-[10px] font-body uppercase tracking-[0.15em] text-slate-blue hover:text-navy transition-colors flex items-center justify-center gap-1"
+              >
+                <Tag size={11} strokeWidth={2} /> Have a promo code?
+              </button>
+            </>
+          )}
+
+          {view === 'promo' && (
+            <>
+              <div className="text-sm font-body text-charcoal leading-relaxed">
+                Enter your promo code to unlock access or get a discount.
+              </div>
+
+              <input
+                type="text"
+                value={promoCode}
+                onChange={(e) => { setPromoCode(e.target.value.toUpperCase()); reset(); }}
+                placeholder="ENTER CODE"
+                className="w-full px-3 py-2.5 text-sm font-mono text-center uppercase tracking-[0.2em] bg-white-pure border border-slate-soft focus:border-navy outline-none rounded text-charcoal"
+                onKeyDown={(e) => e.key === 'Enter' && handleRedeemPromo()}
+              />
+
+              {error && <div className="text-xs text-negative font-body bg-rose-gold-soft p-2 rounded">{error}</div>}
+              {info && <div className="text-xs text-positive font-body bg-cream p-2 rounded">{info}</div>}
+
+              <button
+                onClick={handleRedeemPromo}
+                disabled={submitting}
+                className="w-full py-2.5 font-body font-semibold uppercase tracking-[0.15em] text-[10px] bg-navy text-cream hover:bg-charcoal transition-colors rounded disabled:opacity-50"
+              >
+                {submitting ? 'Verifying...' : 'Redeem Code'}
+              </button>
+
+              <button
+                onClick={() => { setView('main'); reset(); setPromoCode(''); }}
+                className="w-full text-[10px] font-body uppercase tracking-[0.15em] text-slate-blue hover:text-navy transition-colors"
+              >
+                ← Back
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
 export default function HousingFinanceApp() {
   // Auth state
   const [session, setSession] = useState(null);
@@ -1247,6 +1459,7 @@ export default function HousingFinanceApp() {
   const [dealName, setDealName] = useState('');
   const [saveStatus, setSaveStatus] = useState('');
   const [showTermsView, setShowTermsView] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
   const rentResults = useMemo(() => calcRent(rent), [rent]);
   const saleResults = useMemo(() => calcSale(sale), [sale]);
@@ -1274,6 +1487,29 @@ export default function HousingFinanceApp() {
       subscription?.unsubscribe();
     };
   }, []);
+
+  // Handle Stripe redirect: ?payment=success after a successful checkout
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('payment') === 'success' && session?.user) {
+      // Poll profile every 2 seconds for up to 30 seconds to catch the webhook update
+      let attempts = 0;
+      const maxAttempts = 15;
+      const interval = setInterval(async () => {
+        attempts++;
+        const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+        if (data?.paid) {
+          setProfile(data);
+          clearInterval(interval);
+          // Clean up the URL
+          window.history.replaceState({}, '', window.location.pathname);
+        } else if (attempts >= maxAttempts) {
+          clearInterval(interval);
+        }
+      }, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [session]);
 
   // When user logs in, fetch their profile and deals from Supabase
   useEffect(() => {
@@ -1379,6 +1615,12 @@ export default function HousingFinanceApp() {
     if (!session?.user) {
       setSaveStatus('Not signed in');
       setTimeout(() => setSaveStatus(''), 2000);
+      return;
+    }
+    // Paywall: block save if trial expired and not paid
+    const status = computeTrialStatus(profile);
+    if (status.isExpired && !status.isPaid) {
+      setShowUpgrade(true);
       return;
     }
     setSaveStatus('Saving...');
@@ -1520,6 +1762,8 @@ export default function HousingFinanceApp() {
     <div className="paper-bg min-h-screen font-body text-charcoal">
       <GlobalStyles />
 
+      <TrialBanner profile={profile} onUpgrade={() => setShowUpgrade(true)} />
+
       <header className="bg-navy">
         <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 flex flex-col md:flex-row md:items-end md:justify-between gap-5">
           <div>
@@ -1596,6 +1840,18 @@ export default function HousingFinanceApp() {
 
       <SavedDeals open={showDeals} onClose={() => setShowDeals(false)} deals={deals} onLoad={loadDeal} onDelete={deleteDeal} loading={dealsLoading} />
       <TermsModal open={showTermsView} viewOnly onClose={() => setShowTermsView(false)} />
+      <UpgradeModal
+        open={showUpgrade}
+        onClose={() => setShowUpgrade(false)}
+        session={session}
+        onPromoSuccess={async () => {
+          // Re-fetch profile to pick up the new paid status
+          if (session?.user) {
+            const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+            if (data) setProfile(data);
+          }
+        }}
+      />
     </div>
   );
 }
